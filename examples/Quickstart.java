@@ -1,5 +1,6 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//DEPS com.github.anand-krishanu:micrograd4j:0.1.0
+//REPOS jitpack=https://jitpack.io
+//DEPS com.github.anand-krishanu:micrograd4j:v1.0.0
 //
 // Zero-install demo. With JBang installed (https://www.jbang.dev), run:
 //     jbang examples/Quickstart.java
