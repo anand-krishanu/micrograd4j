@@ -191,6 +191,23 @@ public class Value {
     }
 
     /**
+     * Reset grad to 0 on this value and every value reachable from it.
+     * Call before backward() so gradients from a previous pass don't accumulate.
+     */
+    public void zeroGrad() {
+        zeroGrad(this, new HashSet<>());
+    }
+
+    private void zeroGrad(Value v, Set<Value> visited) {
+        if (visited.add(v)) {
+            v.grad = 0.0;
+            for (Value child : v.prev) {
+                zeroGrad(child, visited);
+            }
+        }
+    }
+
+    /**
      * DFS topological sort: adds children before parents so backward() can reverse it.
      */
     private void buildTopo (Value v, Set<Value> visited, List<Value> topo) {
