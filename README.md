@@ -40,11 +40,11 @@ Add the JitPack repository and the dependency to your `pom.xml`:
 <dependency>
   <groupId>com.github.anand-krishanu</groupId>
   <artifactId>micrograd4j</artifactId>
-  <version>0.1.0</version>
+  <version>v1.0.0</version>
 </dependency>
 ```
 
-> Replace `0.1.0` with any released tag, a branch as `main-SNAPSHOT`, or a commit hash.
+> Replace `v1.0.0` with any released tag, a branch as `main-SNAPSHOT`, or a commit hash.
 
 ## What's inside
 
