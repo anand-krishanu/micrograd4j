@@ -1,5 +1,8 @@
+package io.github.anandkrishanu.micrograd;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 /**
  * A layer of independent neurons that all see the same input.
@@ -7,10 +10,10 @@ import java.util.List;
 public class Layer extends Module {
     public List<Neuron> neurons;
 
-    public Layer(int nin, int nout, boolean nonlin) {
+    public Layer(int nin, int nout, Activation activation, Random rng) {
         neurons = new ArrayList<>();
         for (int i = 0; i < nout; i++) {
-            neurons.add(new Neuron(nin, nonlin));
+            neurons.add(new Neuron(nin, activation, rng));
         }
     }
 

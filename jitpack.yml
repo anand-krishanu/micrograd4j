@@ -1,0 +1,3 @@
+# Tells JitPack which JDK to build with when someone requests a release.
+jdk:
+  - openjdk17
