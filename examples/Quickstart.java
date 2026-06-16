@@ -5,7 +5,7 @@
 // Zero-install demo. With JBang installed (https://www.jbang.dev), run:
 //     jbang examples/Quickstart.java
 // JBang fetches micrograd4j from JitPack and runs this file -- no clone, no build.
-// (Requires a published tag '0.1.0' on the repo so JitPack can build it.)
+// (Requires a published tag 'v1.0.0' on the repo so JitPack can build it.)
 
 import io.github.anandkrishanu.micrograd.Value;
 
