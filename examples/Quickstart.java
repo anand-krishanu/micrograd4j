@@ -1,11 +1,11 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //REPOS jitpack=https://jitpack.io
-//DEPS com.github.anand-krishanu:micrograd4j:v1.0.0
+//DEPS com.github.anand-krishanu:micrograd4j:v1.1.0
 //
 // Zero-install demo. With JBang installed (https://www.jbang.dev), run:
 //     jbang examples/Quickstart.java
 // JBang fetches micrograd4j from JitPack and runs this file -- no clone, no build.
-// (Requires a published tag 'v1.0.0' on the repo so JitPack can build it.)
+// (Requires a published tag 'v1.1.0' on the repo so JitPack can build it.)
 
 import io.github.anandkrishanu.micrograd.Value;
 

@@ -25,6 +25,29 @@ jbang https://raw.githubusercontent.com/anand-krishanu/micrograd4j/main/examples
 
 JBang pulls the library from JitPack and runs it — no clone, no build.
 
+## Interactive playground (no install)
+
+Want to actually *drive* the engine instead of reading a script? Launch the interactive
+terminal playground with one command:
+
+```bash
+jbang https://raw.githubusercontent.com/anand-krishanu/micrograd4j/main/examples/Playground.java
+```
+
+It's a menu-driven TUI (built on [JLine](https://github.com/jline/jline3)) with four modes:
+
+- **Autograd playground** — type your own expressions (`(a*b) + c.tanh()`, `relu(a) / 2`),
+  assign variables, and see the value plus every input's gradient after `backward()`.
+- **Train a network** — pick a dataset (`moons`, `xor`, `circles`, or enter your own points)
+  and watch a **live ASCII loss curve** train, then a **decision-boundary** plot of the result.
+- **Step through backprop** — walk the backward pass node-by-node and watch gradients flow
+  through the computation graph.
+- **Settings** — tune the dataset, hidden layers, activation, epochs, learning rate, and seed,
+  then re-run.
+
+Run it from a clone with `jbang examples/Playground.java`, or do a quick non-interactive
+smoke run with `jbang examples/Playground.java --demo`.
+
 ## Use it as a dependency (Maven via JitPack)
 
 Add the JitPack repository and the dependency to your `pom.xml`:
@@ -40,11 +63,11 @@ Add the JitPack repository and the dependency to your `pom.xml`:
 <dependency>
   <groupId>com.github.anand-krishanu</groupId>
   <artifactId>micrograd4j</artifactId>
-  <version>v1.0.0</version>
+  <version>v1.1.0</version>
 </dependency>
 ```
 
-> Replace `v1.0.0` with any released tag, a branch as `main-SNAPSHOT`, or a commit hash.
+> Replace `v1.1.0` with any released tag, a branch as `main-SNAPSHOT`, or a commit hash.
 
 ## What's inside
 
@@ -110,6 +133,8 @@ src/main/java/io/github/anandkrishanu/micrograd/   core: Value, Module, Neuron, 
                                          .../examples/   runnable demos
 src/test/java/io/github/anandkrishanu/micrograd/   JUnit 5 tests
 examples/Quickstart.java                           JBang zero-install demo
+examples/Playground.java                           JBang interactive TUI playground
+                       .../playground/             playground modules (parser, charts, trainer, ...)
 ```
 
 ## Credits
