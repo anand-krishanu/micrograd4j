@@ -6,7 +6,7 @@
 
     <groupId>io.github.anandkrishanu</groupId>
     <artifactId>micrograd4j</artifactId>
-    <version>0.1.0</version>
+    <version>1.2.0</version>
     <packaging>jar</packaging>
 
     <name>micrograd4j</name>

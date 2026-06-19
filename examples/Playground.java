@@ -1,10 +1,12 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //REPOS mavencentral,jitpack=https://jitpack.io
-//DEPS com.github.anand-krishanu:micrograd4j:v1.1.0
+//DEPS com.github.anand-krishanu:micrograd4j:v1.2.0
 //DEPS org.jline:jline:3.26.3
 //JAVA_OPTIONS --enable-native-access=ALL-UNNAMED
 //SOURCES playground/Tui.java playground/ExprParser.java playground/Charts.java
 //SOURCES playground/Datasets.java playground/Trainer.java playground/GraphView.java
+//SOURCES playground/Menu.java playground/Braille.java playground/Explain.java
+//SOURCES playground/GraphInteractive.java
 //
 // Interactive micrograd4j playground. Zero-install:
 //   jbang https://raw.githubusercontent.com/anand-krishanu/micrograd4j/main/examples/Playground.java
@@ -20,6 +22,7 @@ import io.github.anandkrishanu.micrograd.Value;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -28,10 +31,14 @@ public class Playground {
     static final Config cfg = new Config();
     static final ExprParser parser = new ExprParser();
     static Value lastExpr = null;
+    static boolean explainMode = false;
+
+    static final String BANNER = "▲ micrograd4j\na tiny autograd engine you can poke at";
 
     public static void main(String[] args) {
         boolean demo = args.length > 0 && args[0].equals("--demo");
         Tui.init();
+        Tui.dynamicWords = parser.vars::keySet;   // feed live variable names to tab-completion
         try {
             if (demo) {
                 runDemo();
@@ -45,33 +52,26 @@ public class Playground {
 
     // ---------------------------------------------------------------- main menu
     private static void mainLoop() {
+        List<Menu.Item> items = List.of(
+                Menu.Item.of("Autograd playground", "type expressions, see gradients & graph"),
+                Menu.Item.of("Train a network", "live loss curve + decision boundary"),
+                Menu.Item.of("Step through backprop", "watch gradients flow node by node"),
+                Menu.Item.of("Learn how autograd works", "a one-minute guided tour"),
+                Menu.Item.of("Settings", "dataset & hyperparameters"),
+                Menu.Item.of("Quit", "")
+        );
         while (true) {
-            Tui.clear();
-            banner();
-            Tui.header("main menu");
-            Tui.println("  " + Tui.color("[1]", Tui.YELLOW) + " Autograd playground   – type expressions, see gradients & graph");
-            Tui.println("  " + Tui.color("[2]", Tui.YELLOW) + " Train a network       – live loss curve + decision boundary");
-            Tui.println("  " + Tui.color("[3]", Tui.YELLOW) + " Step through backprop – watch gradients flow node by node");
-            Tui.println("  " + Tui.color("[4]", Tui.YELLOW) + " Settings              – dataset & hyperparameters");
-            Tui.println("  " + Tui.color("[q]", Tui.YELLOW) + " Quit");
-            Tui.flush();
-            String c = Tui.readLine("\n» ");
-            if (c == null) return;
-            switch (c.trim().toLowerCase()) {
-                case "1": autogradPlayground(); break;
-                case "2": trainScreen(); break;
-                case "3": backpropScreen(); break;
-                case "4": settingsScreen(); break;
-                case "q": case "quit": case "exit": return;
-                default: break;
+            int c = Menu.select(BANNER, "arrow keys move · Enter selects · q quits", items, null);
+            switch (c) {
+                case 0: autogradPlayground(); break;
+                case 1: trainScreen(); break;
+                case 2: backpropScreen(); break;
+                case 3: learnScreen(); break;
+                case 4: settingsScreen(); break;
+                case 5: case -1: return;     // Quit, or q / Esc
+                default: break;              // -2 (dumb: unrecognised): loop and re-render
             }
         }
-    }
-
-    private static void banner() {
-        Tui.println(Tui.color("  micrograd4j", Tui.BOLD + Tui.CYAN)
-                + Tui.color("  ·  a tiny autograd engine you can poke at", Tui.DIM));
-        Tui.println();
     }
 
     // ----------------------------------------------------- 1. autograd playground
@@ -88,14 +88,21 @@ public class Playground {
             if (line.equals(":back") || line.equalsIgnoreCase("q")) return;
             if (line.equals(":help")) { playgroundHelp(); continue; }
             if (line.equals(":vars")) { printVars(); continue; }
+            if (line.equals(":examples")) { examplesScreen(); continue; }
+            if (line.equals(":explain")) {
+                explainMode = !explainMode;
+                Tui.println(Tui.color("  explain mode " + (explainMode ? "on" : "off"), Tui.YELLOW)
+                        + Tui.color("  (per-op chain rule printed after each result)", Tui.DIM));
+                continue;
+            }
             if (line.equals(":graph")) {
                 if (lastExpr == null) Tui.println(Tui.color("  evaluate an expression first", Tui.YELLOW));
-                else Tui.print(GraphView.renderGraph(lastExpr, parser.names, null));
+                else { GraphInteractive.view(lastExpr, parser.names); redrawPlaygroundHeader(); }
                 continue;
             }
             if (line.equals(":step")) {
                 if (lastExpr == null) Tui.println(Tui.color("  evaluate an expression first", Tui.YELLOW));
-                else stepBackprop(lastExpr, parser.names, true);
+                else { GraphInteractive.backprop(lastExpr, parser.names); redrawPlaygroundHeader(); }
                 continue;
             }
             // assignment?  name = <number or expression>
@@ -104,25 +111,36 @@ public class Playground {
                 handleAssign(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
                 continue;
             }
-            // otherwise evaluate
-            try {
-                Value root = parser.eval(line);
-                root.zeroGrad();
-                root.backward();
-                lastExpr = root;
-                printResult(root);
-            } catch (RuntimeException e) {
-                Tui.println(Tui.color("  error: " + e.getMessage(), Tui.RED));
-            }
+            evaluate(line);
         }
+    }
+
+    private static void redrawPlaygroundHeader() {
+        Tui.clear();
+        Tui.header("Autograd playground");
+        Tui.println(Tui.color("  back in the playground — type an expression, or :help / :examples / :back", Tui.DIM));
     }
 
     private static void playgroundHelp() {
         Tui.println(Tui.color("  assign a variable:", Tui.DIM) + "  a = 2.0");
         Tui.println(Tui.color("  type an expression:", Tui.DIM) + " (a*b) + c.tanh()   or   relu(a) / 2");
         Tui.println(Tui.color("  functions:", Tui.DIM) + " tanh, relu, exp     operators: + - * / ^");
-        Tui.println(Tui.color("  commands:", Tui.DIM) + "  :graph  :step  :vars  :help  :back");
+        Tui.println(Tui.color("  commands:", Tui.DIM) + "  :examples  :graph  :step  :explain  :vars  :help  :back");
         Tui.println();
+    }
+
+    /** Parse + backward + show; the shared path for typed expressions and presets. */
+    private static void evaluate(String line) {
+        try {
+            Value root = parser.eval(line);
+            root.zeroGrad();
+            root.backward();
+            lastExpr = root;
+            printResult(root);
+            if (explainMode) printExplain(root);
+        } catch (RuntimeException e) {
+            showParseError(line, e.getMessage());
+        }
     }
 
     private static void handleAssign(String name, String rhs) {
@@ -137,7 +155,7 @@ public class Playground {
             try {
                 val = parser.eval(rhs).data;
             } catch (RuntimeException e) {
-                Tui.println(Tui.color("  error: " + e.getMessage(), Tui.RED));
+                showParseError(rhs, e.getMessage());
                 return;
             }
         }
@@ -165,11 +183,88 @@ public class Playground {
         Tui.println(Tui.color("  (:graph to see the computation graph, :step to walk backprop)", Tui.DIM));
     }
 
+    /** Print the per-op chain rule for every internal node (root first). */
+    private static void printExplain(Value root) {
+        List<Value> topo = GraphView.buildTopo(root);
+        Collections.reverse(topo);
+        Tui.println(Tui.color("  how each op passes gradient back:", Tui.DIM));
+        for (Value v : topo) {
+            if (v.prev.isEmpty()) continue;
+            Tui.println(Tui.color("    " + Explain.localRule(v), Tui.DIM));
+        }
+    }
+
+    private static void showParseError(String line, String msg) {
+        Tui.println(Tui.color("  error: " + msg, Tui.RED));
+        int col = extractColumn(msg);
+        if (col >= 1 && col <= line.length() + 1) {
+            Tui.println("  " + line);
+            Tui.println("  " + " ".repeat(col - 1) + Tui.color("^", Tui.BOLD + Tui.RED));
+        }
+    }
+
+    private static int extractColumn(String msg) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("column (\\d+)").matcher(msg);
+        return m.find() ? Integer.parseInt(m.group(1)) : -1;
+    }
+
     private static void printVars() {
         if (parser.vars.isEmpty()) { Tui.println(Tui.color("  (no variables yet)", Tui.DIM)); return; }
         for (Map.Entry<String, Value> e : parser.vars.entrySet()) {
             Tui.println("  " + Tui.color(e.getKey(), Tui.BOLD) + " = " + ExprParser.trimNum(e.getValue().data));
         }
+    }
+
+    // ----- expression presets -----
+    private record Preset(String desc, String expr, LinkedHashMap<String, Double> vars) {}
+
+    private static Preset preset(String desc, String expr, Object... kv) {
+        LinkedHashMap<String, Double> m = new LinkedHashMap<>();
+        for (int i = 0; i + 1 < kv.length; i += 2) m.put((String) kv[i], ((Number) kv[i + 1]).doubleValue());
+        return new Preset(desc, expr, m);
+    }
+
+    private static final List<Preset> PRESETS = List.of(
+            preset("two ops: (a*b) + c", "(a*b) + c", "a", 2.0, "b", -3.0, "c", 10.0),
+            preset("a polynomial: x² + 3x + 1   (dy/dx = 2x+3)", "x^2 + 3*x + 1", "x", -4.0),
+            preset("a tiny neuron: tanh(w1·x1 + w2·x2 + b)", "(w1*x1 + w2*x2 + b).tanh()",
+                    "w1", 0.5, "x1", 1.0, "w2", -0.3, "x2", 2.0, "b", 0.1),
+            preset("mixing activations: a.tanh() + relu(b)", "a.tanh() + relu(b)", "a", 0.8, "b", -1.5),
+            preset("a sigmoid: exp(z) / (exp(z) + 1)", "exp(z) / (exp(z) + 1)", "z", 0.5)
+    );
+
+    private static void examplesScreen() {
+        List<Menu.Item> items = new ArrayList<>();
+        for (Preset p : PRESETS) items.add(Menu.Item.of(p.expr(), p.desc()));
+        int idx = Menu.select("Example expressions", "pick one to load its variables and evaluate", items, null);
+        if (idx < 0) { Tui.clear(); Tui.header("Autograd playground"); playgroundHelp(); return; }
+        Preset p = PRESETS.get(idx);
+        for (Map.Entry<String, Double> e : p.vars().entrySet()) parser.assign(e.getKey(), e.getValue());
+
+        Tui.clear();
+        Tui.header("Autograd playground");
+        Tui.println(Tui.color("  loaded: ", Tui.DIM) + p.desc());
+        StringBuilder a = new StringBuilder("  ");
+        for (Map.Entry<String, Double> e : p.vars().entrySet()) {
+            a.append(Tui.color(e.getKey(), Tui.BOLD)).append("=").append(ExprParser.trimNum(e.getValue())).append("  ");
+        }
+        Tui.println(a.toString());
+        Tui.println("  " + Tui.color("expr> ", Tui.CYAN) + p.expr());
+        evaluate(p.expr());
+    }
+
+    // ------------------------------------------------------------- Learn screen
+    private static void learnScreen() {
+        List<String> pages = Explain.intro();
+        for (int i = 0; i < pages.size(); i++) {
+            Tui.clear();
+            Tui.panel("How autograd works   (" + (i + 1) + "/" + pages.size() + ")", pages.get(i));
+            Tui.println();
+            if (Tui.dumb) continue;
+            String k = Tui.readLine(Tui.color("  [Enter] next   [q] back  ", Tui.DIM));
+            if (k != null && k.trim().equalsIgnoreCase("q")) return;
+        }
+        if (!Tui.dumb) Tui.pressEnter();
     }
 
     // ----------------------------------------------------------- 2. train screen
@@ -187,20 +282,30 @@ public class Playground {
         final List<Double> lossHist = new ArrayList<>();
         final List<Double> accHist = new ArrayList<>();
         final int drawEvery = Math.max(1, cfg.epochs / 40);
+        final int[] tick = {0};
+        if (!Tui.dumb) Tui.clear();
 
         Trainer.train(cfg, model, ds.xs, ds.ys, (step, epochs, loss, acc, m) -> {
             lossHist.add(loss);
             accHist.add(acc);
             boolean lastStep = step == epochs;
             if (!Tui.dumb && (step % drawEvery == 0 || lastStep)) {
-                Tui.clear();
-                Tui.header("Training  (step " + step + "/" + epochs + ")");
-                Tui.print(Charts.lossCurve(lossHist, chartWidth(), 12));
-                Tui.println("  acc " + Tui.color(Charts.sparkline(accHist, chartWidth()), Tui.GREEN)
-                        + "  " + Tui.color(String.format("%.0f%%", acc * 100), Tui.GREEN));
-                Tui.println(String.format("  loss %s   acc %s",
+                tick[0]++;
+                double frac = epochs == 0 ? 1.0 : (double) step / epochs;
+                double lr = cfg.baseLr * (1.0 - 0.9 * step / Math.max(1, epochs));
+                StringBuilder f = new StringBuilder();
+                f.append(frameLine(Tui.color("  Training a network", Tui.BOLD + Tui.CYAN)));
+                f.append(frameLine("  " + Tui.color(Tui.spinner(tick[0]), Tui.CYAN)
+                        + String.format("  step %d/%d   ", step, epochs)
+                        + Tui.progressBar(frac, 22) + String.format(" %3.0f%%", frac * 100)));
+                f.append(frameLine(""));
+                f.append(frameBlock(Charts.lossCurve(lossHist, chartWidth(), 10)));
+                f.append(frameLine("  acc " + Tui.color(Charts.sparkline(accHist, chartWidth()), Tui.GREEN)
+                        + "  " + Tui.color(String.format("%.0f%%", acc * 100), Tui.GREEN)));
+                f.append(frameLine(String.format("  loss %s    lr %s",
                         Tui.color(String.format("%.4f", loss), Tui.CYAN),
-                        Tui.color(String.format("%.0f%%", acc * 100), Tui.GREEN)));
+                        Tui.color(String.format("%.3f", lr), Tui.DIM))));
+                Tui.print(Tui.HOME + f + Tui.CLR_DOWN);
                 Tui.flush();
                 sleep(20);
             }
@@ -208,8 +313,7 @@ public class Playground {
 
         double finalAcc = Trainer.accuracy(model, ds.xs, ds.ys);
         Tui.clear();
-        Tui.header("Training complete");
-        Tui.println(String.format("  final loss %s   accuracy %s   (%d epochs)",
+        Tui.panel("Training complete", String.format("final loss %s    accuracy %s    (%d epochs)",
                 Tui.color(String.format("%.4f", lossHist.get(lossHist.size() - 1)), Tui.CYAN),
                 Tui.color(String.format("%.0f%%", finalAcc * 100), Tui.BOLD + Tui.GREEN),
                 cfg.epochs));
@@ -225,27 +329,37 @@ public class Playground {
         Tui.pressEnter();
     }
 
+    private static String frameLine(String s) {
+        return s + Tui.CLR_EOL + "\n";
+    }
+
+    private static String frameBlock(String multi) {
+        if (multi.endsWith("\n")) multi = multi.substring(0, multi.length() - 1);
+        StringBuilder sb = new StringBuilder();
+        for (String l : multi.split("\n", -1)) sb.append(l).append(Tui.CLR_EOL).append('\n');
+        return sb.toString();
+    }
+
     // --------------------------------------------------- 3. step-through backprop
     private static void backpropScreen() {
-        Tui.clear();
-        Tui.header("Step through backprop");
-        Tui.println("  " + Tui.color("[1]", Tui.YELLOW) + " your last expression"
-                + (lastExpr == null ? Tui.color("  (none yet — build one in the playground)", Tui.DIM) : ""));
-        Tui.println("  " + Tui.color("[2]", Tui.YELLOW) + " a single neuron forward pass");
-        Tui.println("  " + Tui.color("[b]", Tui.YELLOW) + " back");
-        Tui.flush();
-        String c = Tui.readLine("\n» ");
-        if (c == null) return;
-        switch (c.trim().toLowerCase()) {
-            case "1":
+        List<Menu.Item> items = List.of(
+                Menu.Item.of("Your last expression",
+                        lastExpr == null ? "(none yet — build one in the playground)" : "walk its backward pass"),
+                Menu.Item.of("A single neuron forward pass", "tanh(w1·x1 + w2·x2 + b)")
+        );
+        int c = Menu.select("Step through backprop", "apply one node's local backward at a time", items, null);
+        switch (c) {
+            case 0:
                 if (lastExpr == null) {
+                    Tui.clear();
+                    Tui.header("Step through backprop");
                     Tui.println(Tui.color("  Build an expression in the Autograd playground first.", Tui.YELLOW));
                     Tui.pressEnter();
                 } else {
-                    stepBackprop(lastExpr, parser.names, true);
+                    GraphInteractive.backprop(lastExpr, parser.names);
                 }
                 break;
-            case "2":
+            case 1:
                 singleNeuronBackprop();
                 break;
             default:
@@ -265,67 +379,50 @@ public class Playground {
         names.put(neuron.w.get(0), "w1");
         names.put(neuron.w.get(1), "w2");
         names.put(neuron.b, "b");
-        stepBackprop(out, names, true);
-    }
-
-    /**
-     * Walk the backward pass parents-first, calling {@code _backward()} on each node and
-     * re-rendering the graph so the user sees gradients appear. {@code interactive} waits for Enter.
-     */
-    private static void stepBackprop(Value root, Map<Value, String> names, boolean interactive) {
-        List<Value> topo = GraphView.buildTopo(root);
-        Collections.reverse(topo);          // parents before children, like Value.backward()
-        root.zeroGrad();
-        root.grad = 1.0;
-
-        Tui.clear();
-        Tui.header("Backprop — " + topo.size() + " nodes");
-        Tui.println(Tui.color("  output grad seeded to 1.0; each step applies one node's local backward.", Tui.DIM));
-        Tui.print(GraphView.renderGraph(root, names, null));
-
-        for (Value v : topo) {
-            if (interactive) {
-                String k = Tui.readLine(Tui.color("  [Enter] step   [q] stop  ", Tui.DIM));
-                if (k != null && k.trim().equalsIgnoreCase("q")) break;
-                v._backward();
-                Tui.clear();
-                Tui.header("Backprop — applied " + opName(v) + " (data=" + String.format("%.3f", v.data) + ")");
-                Tui.print(GraphView.renderGraph(root, names, v));
-            } else {
-                v._backward();
-                Tui.println("  applied " + Tui.color(opName(v), Tui.BOLD)
-                        + "  data=" + String.format("%.3f", v.data)
-                        + "  grad=" + String.format("%+.3f", v.grad));
-            }
-        }
-        if (!interactive) Tui.print(GraphView.renderGraph(root, names, null));
-
-        Tui.println(Tui.color("  done. input gradients:", Tui.BOLD));
-        for (Map.Entry<Value, String> e : names.entrySet()) {
-            if (e.getValue() != null) {
-                double g = e.getKey().grad;
-                Tui.println("    " + e.getValue() + " : "
-                        + (g >= 0 ? Tui.color(String.format("%+.4f", g), Tui.GREEN)
-                                  : Tui.color(String.format("%+.4f", g), Tui.RED)));
-            }
-        }
-        if (interactive) Tui.pressEnter();
-    }
-
-    private static String opName(Value v) {
-        if (v.op == null || v.op.isEmpty()) return "leaf";
-        return v.op;
+        GraphInteractive.backprop(out, names);
     }
 
     // -------------------------------------------------------------- 4. settings
     private static void settingsScreen() {
+        List<Menu.Item> items = List.of(
+                Menu.Item.of("Edit fields one by one", "dataset, layers, activation, epochs, lr, seed"),
+                Menu.Item.of("Preset · Quick", "60 pts · [8] · 60 epochs — fast"),
+                Menu.Item.of("Preset · Balanced", "100 pts · [16,16] · 100 epochs — default"),
+                Menu.Item.of("Preset · Thorough", "200 pts · [16,16,8] · 250 epochs — slow"),
+                Menu.Item.of("Back", "")
+        );
+        int c = Menu.select("Settings", "current:  " + oneLineConfig(), items, null);
+        switch (c) {
+            case 0: editSettings(); break;
+            case 1: applyPreset(60, new int[]{8}, 60); break;
+            case 2: applyPreset(100, new int[]{16, 16}, 100); break;
+            case 3: applyPreset(200, new int[]{16, 16, 8}, 250); break;
+            default: break;
+        }
+    }
+
+    private static void applyPreset(int samples, int[] hidden, int epochs) {
+        cfg.samples = samples;
+        cfg.hidden = hidden;
+        cfg.epochs = epochs;
+        cfg.activation = Activation.TANH;
+        Tui.clear();
+        Tui.header("Settings");
+        Tui.println(Tui.color("  preset applied.", Tui.GREEN));
+        Tui.println();
+        printConfig();
+        Tui.pressEnter();
+    }
+
+    private static void editSettings() {
         Tui.clear();
         Tui.header("Settings");
         printConfig();
         Tui.println();
         Tui.println(Tui.color("  Press Enter to keep the current value.", Tui.DIM));
 
-        String ds = Tui.readLine("  dataset (moons/xor/circles/custom) [" + cfg.dataset + "]: ");
+        String ds = Tui.readLine("  dataset (moons/xor/circles/custom) ["
+                + Tui.color(cfg.dataset, Tui.BOLD) + "]: ");
         if (ds != null && !ds.trim().isEmpty()) {
             ds = ds.trim().toLowerCase();
             if (ds.equals("moons") || ds.equals("xor") || ds.equals("circles") || ds.equals("custom")) cfg.dataset = ds;
@@ -334,10 +431,12 @@ public class Playground {
         cfg.samples = Tui.readInt("  samples", cfg.samples);
         cfg.noise = Tui.readDouble("  noise", cfg.noise);
 
-        String h = Tui.readLine("  hidden layers (e.g. 16,16) [" + cfg.hiddenString() + "]: ");
+        String h = Tui.readLine("  hidden layers (e.g. 16,16) ["
+                + Tui.color(cfg.hiddenString(), Tui.BOLD) + "]: ");
         if (h != null && !h.trim().isEmpty()) cfg.setHidden(h.trim());
 
-        String act = Tui.readLine("  activation (tanh/relu) [" + cfg.activation.name().toLowerCase() + "]: ");
+        String act = Tui.readLine("  activation (tanh/relu) ["
+                + Tui.color(cfg.activation.name().toLowerCase(), Tui.BOLD) + "]: ");
         if (act != null && !act.trim().isEmpty()) {
             cfg.activation = parseActivation(act.trim(), cfg.activation);
         }
@@ -363,6 +462,11 @@ public class Playground {
         Tui.println("  dataset=" + cfg.dataset + "  samples=" + cfg.samples + "  noise=" + cfg.noise);
         Tui.println("  hidden=[" + cfg.hiddenString() + "]  activation=" + cfg.activation.name().toLowerCase()
                 + "  epochs=" + cfg.epochs + "  lr=" + cfg.baseLr + "  seed=" + cfg.seed);
+    }
+
+    private static String oneLineConfig() {
+        return cfg.dataset + " · [" + cfg.hiddenString() + "] · " + cfg.activation.name().toLowerCase()
+                + " · " + cfg.epochs + " ep";
     }
 
     private static String chainString(MLP model) {
@@ -441,7 +545,7 @@ public class Playground {
         names.put(x1, "x1"); names.put(x2, "x2");
         names.put(neuron.w.get(0), "w1"); names.put(neuron.w.get(1), "w2");
         names.put(neuron.b, "b");
-        stepBackprop(out, names, false);
+        GraphInteractive.backpropStatic(out, names);
 
         Tui.println(Tui.color("\n=== demo complete ===", Tui.BOLD + Tui.CYAN));
         Tui.flush();
