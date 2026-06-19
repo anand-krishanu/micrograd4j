@@ -31,6 +31,25 @@ final class GraphView {
         }
     }
 
+    /**
+     * Nodes in the same order {@link #renderGraph} prints them (first-occurrence pre-order, children
+     * sorted by data then op). Index {@code i} corresponds to the rendered id {@code #(i+1)}.
+     */
+    static List<Value> displayOrder(Value root) {
+        List<Value> order = new ArrayList<>();
+        Set<Value> shown = Collections.newSetFromMap(new IdentityHashMap<>());
+        visitDisplay(root, order, shown);
+        return order;
+    }
+
+    private static void visitDisplay(Value v, List<Value> order, Set<Value> shown) {
+        if (!shown.add(v)) return;
+        order.add(v);
+        List<Value> children = new ArrayList<>(v.prev);
+        children.sort(Comparator.comparingDouble((Value c) -> c.data).thenComparing(c -> c.op));
+        for (Value c : children) visitDisplay(c, order, shown);
+    }
+
     // ----- computation graph -----
     /** Render the graph rooted at {@code root} as an ASCII tree. {@code highlight} (nullable) is marked. */
     static String renderGraph(Value root, Map<Value, String> names, Value highlight) {
@@ -76,7 +95,7 @@ final class GraphView {
         }
     }
 
-    private static String label(Value v, Map<Value, String> names) {
+    static String label(Value v, Map<Value, String> names) {
         String name = names == null ? null : names.get(v);
         if (name != null) return name;
         if (v.prev.isEmpty()) return "leaf";

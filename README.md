@@ -34,19 +34,34 @@ terminal playground with one command:
 jbang https://raw.githubusercontent.com/anand-krishanu/micrograd4j/main/examples/Playground.java
 ```
 
-It's a menu-driven TUI (built on [JLine](https://github.com/jline/jline3)) with four modes:
+It's a keyboard-driven TUI (built on [JLine](https://github.com/jline/jline3)). Move through the
+menus with the **arrow keys** and pick with **Enter** (or press the number, or `q` to go back):
 
 - **Autograd playground** — type your own expressions (`(a*b) + c.tanh()`, `relu(a) / 2`),
   assign variables, and see the value plus every input's gradient after `backward()`.
+  Tab-completes your variables and the commands; `:examples` loads a ready-made expression,
+  `:explain` prints the chain rule each op applies, and a syntax slip is pointed at with a `^`.
+  `:graph` opens an **interactive graph inspector** (arrow through the nodes, see each one's
+  data/grad/inputs and rule), and `:step` opens a **backprop scrubber** — step forward/back or
+  press `a` to auto-play the animation and watch gradients flow node by node.
 - **Train a network** — pick a dataset (`moons`, `xor`, `circles`, or enter your own points)
-  and watch a **live ASCII loss curve** train, then a **decision-boundary** plot of the result.
-- **Step through backprop** — walk the backward pass node-by-node and watch gradients flow
-  through the computation graph.
-- **Settings** — tune the dataset, hidden layers, activation, epochs, learning rate, and seed,
-  then re-run.
+  and watch a **live dashboard**: a progress bar, a smooth **braille loss curve**, and an
+  accuracy sparkline, finishing with a **heatmap decision boundary** (brighter = more confident).
+- **Step through backprop** — the same scrubber as `:step`: step the backward pass forward/back,
+  auto-play it, and read the local rule applied at each node as gradients light up.
+- **Learn how autograd works** — a one-minute guided tour of the forward graph, the chain rule,
+  and a worked example.
+- **Settings** — tune the dataset, hidden layers, activation, epochs, learning rate, and seed
+  (or apply a Quick / Balanced / Thorough preset), then re-run.
 
-Run it from a clone with `jbang examples/Playground.java`, or do a quick non-interactive
-smoke run with `jbang examples/Playground.java --demo`.
+Every visual degrades gracefully: piped input or `--demo` falls back to plain ASCII with no
+colour or cursor tricks, so it stays readable in a log. Run it from a clone with
+`jbang examples/Playground.java`, or do a quick non-interactive smoke run with
+`jbang examples/Playground.java --demo`.
+
+> How it works: each visual is plain Java + JLine — the loss curve is drawn on a 2×4 **braille**
+> dot canvas, the boundary is a 256-colour confidence heatmap, and the menus read arrow keys via
+> JLine's `BindingReader`. No extra dependencies.
 
 ## Use it as a dependency (Maven via JitPack)
 
@@ -63,11 +78,11 @@ Add the JitPack repository and the dependency to your `pom.xml`:
 <dependency>
   <groupId>com.github.anand-krishanu</groupId>
   <artifactId>micrograd4j</artifactId>
-  <version>v1.1.0</version>
+  <version>v1.2.0</version>
 </dependency>
 ```
 
-> Replace `v1.1.0` with any released tag, a branch as `main-SNAPSHOT`, or a commit hash.
+> Replace `v1.2.0` with any released tag, a branch as `main-SNAPSHOT`, or a commit hash.
 
 ## What's inside
 
