@@ -172,3 +172,5 @@ examples/Playground.java                           JBang interactive TUI playgro
 ## Credits
 
 Port of [karpathy/micrograd](https://github.com/karpathy/micrograd). Licensed under the [MIT License](LICENSE).
+
+Thanks :>
