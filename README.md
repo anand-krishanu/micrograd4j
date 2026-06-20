@@ -41,9 +41,12 @@ menus with the **arrow keys** and pick with **Enter** (or press the number, or `
   assign variables, and see the value plus every input's gradient after `backward()`.
   Tab-completes your variables and the commands; `:examples` loads a ready-made expression,
   `:explain` prints the chain rule each op applies, and a syntax slip is pointed at with a `^`.
-  `:graph` opens an **interactive graph inspector** (arrow through the nodes, see each one's
-  data/grad/inputs and rule), and `:step` opens a **backprop scrubber** — step forward/back or
-  press `a` to auto-play the animation and watch gradients flow node by node.
+  `:graph` draws the computation graph as a **colour-coded, left-to-right node-link diagram**
+  (inputs on the left → output on the right, the way a dataflow graph reads): each node is an
+  op-coloured chip carrying a **gradient heat-bar** (longer & brighter = larger `|grad|`), and
+  the result is tagged `◂ output`. `:step` turns it into a **backprop scrubber** — step
+  forward/back or press `a` to auto-play, and watch the bars fill and nodes light up as gradient
+  flows from the output back to every input, with `∂output/∂inputs` printed when it completes.
 - **Train a network** — pick a dataset (`moons`, `xor`, `circles`, or enter your own points)
   and watch a **live dashboard**: a progress bar, a smooth **braille loss curve**, and an
   accuracy sparkline, finishing with a **heatmap decision boundary** (brighter = more confident).
@@ -54,14 +57,28 @@ menus with the **arrow keys** and pick with **Enter** (or press the number, or `
 - **Settings** — tune the dataset, hidden layers, activation, epochs, learning rate, and seed
   (or apply a Quick / Balanced / Thorough preset), then re-run.
 
+For example, `:graph` on `x^2 + 3x + 1` renders the whole computation graph at a glance
+(colour-coded in the terminal — `x` has the largest gradient, so its heat-bar is full):
+
+```
+   1  █░░░─┐
+           │
+   x  ████─┴┬─── ^2.0  █░░░─┬────────────┬── +  █░░░ ◂ output
+            │               │            │
+            │             ┌─┴─── +  █░░░─┘
+   3  ███░──┴─── ×  █░░░──┘
+```
+
 Every visual degrades gracefully: piped input or `--demo` falls back to plain ASCII with no
-colour or cursor tricks, so it stays readable in a log. Run it from a clone with
-`jbang examples/Playground.java`, or do a quick non-interactive smoke run with
-`jbang examples/Playground.java --demo`.
+colour or cursor tricks, so it stays readable in a log (and large graphs fall back to a compact
+indented tree when they wouldn't fit). Run it from a clone with `jbang examples/Playground.java`,
+or do a quick non-interactive smoke run with `jbang examples/Playground.java --demo`.
 
 > How it works: each visual is plain Java + JLine — the loss curve is drawn on a 2×4 **braille**
-> dot canvas, the boundary is a 256-colour confidence heatmap, and the menus read arrow keys via
-> JLine's `BindingReader`. No extra dependencies.
+> dot canvas, the boundary is a 256-colour confidence heatmap, and the computation graph is laid
+> out left-to-right by longest-path layering, then routed on a direction-bitmask canvas so every
+> junction (`├ ┬ ┼ ┘`) picks its own glyph. The menus read arrow keys via JLine's `BindingReader`.
+> No extra dependencies.
 
 ## Use it as a dependency (Maven via JitPack)
 
@@ -78,11 +95,11 @@ Add the JitPack repository and the dependency to your `pom.xml`:
 <dependency>
   <groupId>com.github.anand-krishanu</groupId>
   <artifactId>micrograd4j</artifactId>
-  <version>v1.2.0</version>
+  <version>v1.2.1</version>
 </dependency>
 ```
 
-> Replace `v1.2.0` with any released tag, a branch as `main-SNAPSHOT`, or a commit hash.
+> Replace `v1.2.1` with any released tag, a branch as `main-SNAPSHOT`, or a commit hash.
 
 ## What's inside
 

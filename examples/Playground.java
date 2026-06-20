@@ -1,6 +1,6 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //REPOS mavencentral,jitpack=https://jitpack.io
-//DEPS com.github.anand-krishanu:micrograd4j:v1.2.0
+//DEPS com.github.anand-krishanu:micrograd4j:v1.2.1
 //DEPS org.jline:jline:3.26.3
 //JAVA_OPTIONS --enable-native-access=ALL-UNNAMED
 //SOURCES playground/Tui.java playground/ExprParser.java playground/Charts.java

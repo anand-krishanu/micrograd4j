@@ -82,19 +82,28 @@ final class GraphInteractive {
         Value applied = k > 0 ? topo.get(k - 1) : null;
 
         StringBuilder f = new StringBuilder(Tui.HOME);
-        String title = k == 0 ? "Backprop — output gradient seeded to 1.0"
-                : k == n ? "Backprop — complete"
-                : "Backprop — applied " + opName(applied);
-        f.append(crlf(Tui.color("  " + title, Tui.BOLD + Tui.CYAN)));
+        String title = k == 0 ? Tui.color("Backprop", Tui.BOLD + Tui.CYAN)
+                        + Tui.color("  output gradient seeded to 1.0", Tui.DIM)
+                : k == n ? Tui.color("Backprop", Tui.BOLD + Tui.CYAN)
+                        + Tui.color("  complete", Tui.GREEN)
+                : Tui.color("Backprop", Tui.BOLD + Tui.CYAN)
+                        + Tui.color("  applied ", Tui.DIM) + GraphView.badge(applied, names);
+        f.append(crlf("  " + title));
         double frac = n == 0 ? 1.0 : (double) k / n;
         f.append(crlf("  step " + k + "/" + n + "   " + Tui.progressBar(frac, 22)
                 + (auto ? Tui.color("  ▶ playing", Tui.GREEN) : "")));
         f.append(crlf(""));
-        f.append(block(GraphView.renderGraph(root, names, applied)));
-        if (applied != null && !applied.prev.isEmpty()) {
+        String diagram = GraphView.renderLayered(root, names, applied, true);
+        f.append(block(diagram != null ? diagram : GraphView.renderGraph(root, names, applied, true)));
+        f.append(crlf("  " + GraphView.gradLegend()));
+        f.append(crlf(Tui.color("  output ", Tui.DIM) + GraphView.badge(root, names)
+                + Tui.color(" = " + String.format("%.4f", root.data), Tui.BOLD + Tui.GREEN)
+                + (applied != null ? Tui.color("      current ", Tui.DIM) + GraphView.badge(applied, names)
+                        + "  grad=" + gradStr(applied.grad) : "")));
+        if (k == n) {
+            f.append(crlf(Tui.color("  ✓ ∂output/∂inputs:  ", Tui.GREEN) + inputGrads(root, names)));
+        } else if (applied != null) {
             f.append(crlf(Tui.color("  " + Explain.localRule(applied), Tui.DIM)));
-        } else if (k == n) {
-            f.append(crlf(Tui.color("  ✓ gradients have reached every input", Tui.GREEN)));
         } else {
             f.append(crlf(Tui.color("  press → to apply the first local backward", Tui.DIM)));
         }
@@ -168,11 +177,16 @@ final class GraphInteractive {
         f.append(crlf(Tui.color("  Computation graph", Tui.BOLD + Tui.CYAN)
                 + Tui.color("   " + order.size() + " nodes · ↑/↓ to inspect", Tui.DIM)));
         f.append(crlf(""));
-        f.append(block(GraphView.renderGraph(root, names, v)));
+        String diagram = GraphView.renderLayered(root, names, v, false);
+        f.append(block(diagram != null ? diagram : GraphView.renderGraph(root, names, v)));
+        f.append(crlf("  " + GraphView.gradLegend()));
+        f.append(crlf(Tui.color("  output ", Tui.DIM) + GraphView.badge(root, names)
+                + Tui.color(" = " + String.format("%.4f", root.data), Tui.BOLD + Tui.GREEN)));
         f.append(crlf(""));
         f.append(crlf(Tui.color("  selected ", Tui.DIM)
-                + Tui.color("#" + (sel + 1) + " " + label(v, names), Tui.BOLD)
-                + "   data=" + String.format("%.3f", v.data) + "   grad=" + gradStr(v.grad)));
+                + Tui.color("#" + (sel + 1) + " ", Tui.GRAY) + GraphView.badge(v, names)
+                + "   data=" + Tui.color(String.format("%.3f", v.data), Tui.BOLD)
+                + "   grad=" + gradStr(v.grad)));
         if (!v.prev.isEmpty()) {
             StringBuilder ins = new StringBuilder("  inputs:  ");
             for (Value c : sortedChildren(v)) {
@@ -238,6 +252,18 @@ final class GraphInteractive {
 
     private static String opName(Value v) {
         return v.op == null || v.op.isEmpty() ? "leaf" : v.op;
+    }
+
+    /** "x=+0.071  w1=−0.003 …" — the gradient that reached each named input leaf. */
+    private static String inputGrads(Value root, Map<Value, String> names) {
+        StringBuilder sb = new StringBuilder();
+        for (Value v : GraphView.buildTopo(root)) {
+            if (!v.prev.isEmpty()) continue;
+            String nm = names == null ? null : names.get(v);
+            if (nm == null) continue;
+            sb.append(nm).append("=").append(gradStr(v.grad)).append("   ");
+        }
+        return sb.length() == 0 ? Tui.color("(all inputs)", Tui.DIM) : sb.toString().stripTrailing();
     }
 
     private static String gradStr(double g) {
