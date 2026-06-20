@@ -122,6 +122,16 @@ final class Tui {
         return ESC + "[48;5;" + code + "m" + s + RESET;
     }
 
+    /**
+     * A coloured "chip": {@code text} drawn as {@code fg} on a {@code bg} 256-colour background.
+     * Degrades to reverse-video on basic-colour terminals and to plain text when dumb.
+     */
+    static String chip(String text, int bg, int fg) {
+        if (dumb) return text;
+        if (!color256) return REVERSE + text + RESET;
+        return ESC + "[48;5;" + bg + ";38;5;" + fg + "m" + text + RESET;
+    }
+
     static void print(String s) {
         out.print(s);
     }
