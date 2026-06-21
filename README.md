@@ -164,3 +164,5 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 A Java port of [karpathy/micrograd](https://github.com/karpathy/micrograd) by Andrej Karpathy.
 Licensed under the [MIT License](LICENSE).
+
+Thanks :>
