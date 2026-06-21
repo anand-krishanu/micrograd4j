@@ -3,9 +3,20 @@
 [![CI](https://github.com/anand-krishanu/micrograd4j/actions/workflows/ci.yml/badge.svg)](https://github.com/anand-krishanu/micrograd4j/actions/workflows/ci.yml)
 [![JitPack](https://jitpack.io/v/anand-krishanu/micrograd4j.svg)](https://jitpack.io/#anand-krishanu/micrograd4j)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![JDK 17+](https://img.shields.io/badge/JDK-17%2B-blue.svg)](#build--test)
 
-A tiny scalar-valued **autograd engine** and a small **neural-network library** on top of it, in plain Java.
-A faithful port of [Andrej Karpathy's micrograd](https://github.com/karpathy/micrograd) — small enough to read in one sitting, correct enough to train a real classifier.
+**micrograd, but you can _watch_ backpropagation happen — in your terminal, in plain Java.**
+
+A tiny scalar-valued **autograd engine** (~230 lines) and a small **neural-network library** on top
+of it. A faithful port of [Andrej Karpathy's micrograd](https://github.com/karpathy/micrograd):
+small enough to read in one sitting, correct enough to train a real classifier — paired with an
+interactive playground that lets you step through the chain rule one node at a time.
+
+<p align="center">
+  <img src="docs/assets/step.gif" alt="Stepping through backpropagation in the micrograd4j playground" width="720">
+  <br>
+  <em>The <code>:step</code> scrubber — watch gradients flow back through the graph, one node at a time.</em>
+</p>
 
 ```java
 Value a = new Value(2.0);
@@ -15,74 +26,53 @@ L.backward();
 System.out.println(a.grad);  // 6.0  ->  dL/da
 ```
 
+> **Who it's for:** Java developers curious about how deep-learning frameworks actually work under the
+> hood — learning reverse-mode autodiff by *reading and poking at* the code instead of staring at math.
+
 ## Try it in 10 seconds (no install)
 
-With [JBang](https://www.jbang.dev):
+With [JBang](https://www.jbang.dev) (`curl -Ls https://sh.jbang.dev | bash`, or `choco install jbang`):
 
 ```bash
+# Zero-install autograd demo — no clone, no build:
 jbang https://raw.githubusercontent.com/anand-krishanu/micrograd4j/main/examples/Quickstart.java
 ```
 
-JBang pulls the library from JitPack and runs it — no clone, no build.
+JBang pulls the library from JitPack and runs the file for you.
 
-## Interactive playground (no install)
-
-Want to actually *drive* the engine instead of reading a script? Launch the interactive
-terminal playground with one command:
+## The interactive playground
 
 ```bash
 jbang https://raw.githubusercontent.com/anand-krishanu/micrograd4j/main/examples/Playground.java
 ```
 
-It's a keyboard-driven TUI (built on [JLine](https://github.com/jline/jline3)). Move through the
-menus with the **arrow keys** and pick with **Enter** (or press the number, or `q` to go back):
+A keyboard-driven terminal UI (arrow keys + Enter, `q` to go back). Five things you can do:
 
-- **Autograd playground** — type your own expressions (`(a*b) + c.tanh()`, `relu(a) / 2`),
-  assign variables, and see the value plus every input's gradient after `backward()`.
-  Tab-completes your variables and the commands; `:examples` loads a ready-made expression,
-  `:explain` prints the chain rule each op applies, and a syntax slip is pointed at with a `^`.
-  `:graph` draws the computation graph as a **colour-coded, left-to-right node-link diagram**
-  (inputs on the left → output on the right, the way a dataflow graph reads): each node is an
-  op-coloured chip carrying a **gradient heat-bar** (longer & brighter = larger `|grad|`), and
-  the result is tagged `◂ output`. `:step` turns it into a **backprop scrubber** — step
-  forward/back or press `a` to auto-play, and watch the bars fill and nodes light up as gradient
-  flows from the output back to every input, with `∂output/∂inputs` printed when it completes.
-- **Train a network** — pick a dataset (`moons`, `xor`, `circles`, or enter your own points)
-  and watch a **live dashboard**: a progress bar, a smooth **braille loss curve**, and an
-  accuracy sparkline, finishing with a **heatmap decision boundary** (brighter = more confident).
-- **Step through backprop** — the same scrubber as `:step`: step the backward pass forward/back,
-  auto-play it, and read the local rule applied at each node as gradients light up.
-- **Learn how autograd works** — a one-minute guided tour of the forward graph, the chain rule,
-  and a worked example.
-- **Settings** — tune the dataset, hidden layers, activation, epochs, learning rate, and seed
-  (or apply a Quick / Balanced / Thorough preset), then re-run.
+| Mode | What you get |
+|------|--------------|
+| **Autograd playground** | Type expressions (`(a*b) + c.tanh()`), see the value plus every input's gradient. `:graph` draws the colour-coded computation graph with gradient **heat-bars**; `:step` animates backprop; `:explain` prints the chain rule each op applies. |
+| **Train a network** | Pick a dataset (`moons` / `xor` / `circles` / your own) and watch a live **braille loss curve**, accuracy sparkline, and a 256-colour **decision-boundary heatmap**. |
+| **Step through backprop** | The scrubber: step the backward pass forward/back, or auto-play, and read the local rule at each node as gradients light up. |
+| **Learn how autograd works** | A one-minute guided tour of the forward graph and the chain rule. |
+| **Settings** | Tune dataset, hidden layers, activation, epochs, learning rate, seed (or apply a preset). |
 
-For example, `:graph` on `x^2 + 3x + 1` renders the whole computation graph at a glance
-(colour-coded in the terminal — `x` has the largest gradient, so its heat-bar is full):
+> Every visual degrades gracefully: piped input or `--demo` falls back to plain ASCII with no colour
+> or cursor tricks, so it stays readable in a log. Smoke run: `jbang examples/Playground.java --demo`.
 
-```
-   1  █░░░─┐
-           │
-   x  ████─┴┬─── ^2.0  █░░░─┬────────────┬── +  █░░░ ◂ output
-            │               │            │
-            │             ┌─┴─── +  █░░░─┘
-   3  ███░──┴─── ×  █░░░──┘
-```
+## How autograd works (30 seconds)
 
-Every visual degrades gracefully: piped input or `--demo` falls back to plain ASCII with no
-colour or cursor tricks, so it stays readable in a log (and large graphs fall back to a compact
-indented tree when they wouldn't fit). Run it from a clone with `jbang examples/Playground.java`,
-or do a quick non-interactive smoke run with `jbang examples/Playground.java --demo`.
+Every `Value` remembers the operation that created it and its parents, so a chain of arithmetic forms
+a graph. `backward()` walks that graph in **reverse topological order** and, at each node, applies the
+**chain rule** — multiplying the gradient arriving from above by that op's *local* derivative — and
+accumulates it into each input's `.grad`. That single idea, node by node, is the engine behind every
+deep-learning framework — here it's ~230 readable lines.
 
-> How it works: each visual is plain Java + JLine — the loss curve is drawn on a 2×4 **braille**
-> dot canvas, the boundary is a 256-colour confidence heatmap, and the computation graph is laid
-> out left-to-right by longest-path layering, then routed on a direction-bitmask canvas so every
-> junction (`├ ┬ ┼ ┘`) picks its own glyph. The menus read arrow keys via JLine's `BindingReader`.
-> No extra dependencies.
+Full worked walkthrough: **[docs/HOW_AUTOGRAD_WORKS.md](docs/HOW_AUTOGRAD_WORKS.md)**
 
-## Use it as a dependency (Maven via JitPack)
+## Use it as a dependency
 
-Add the JitPack repository and the dependency to your `pom.xml`:
+<details open>
+<summary><b>Maven</b> (via JitPack)</summary>
 
 ```xml
 <repositories>
@@ -99,7 +89,20 @@ Add the JitPack repository and the dependency to your `pom.xml`:
 </dependency>
 ```
 
-> Replace `v1.2.1` with any released tag, a branch as `main-SNAPSHOT`, or a commit hash.
+</details>
+
+<details>
+<summary><b>Gradle</b> (Kotlin DSL)</summary>
+
+```kotlin
+repositories { maven("https://jitpack.io") }
+dependencies { implementation("com.github.anand-krishanu:micrograd4j:v1.2.1") }
+```
+
+</details>
+
+> Replace `v1.2.1` with any released tag, `main-SNAPSHOT`, or a commit hash. (The JitPack coordinate is
+> `com.github.anand-krishanu`; the Java package is `io.github.anandkrishanu`.)
 
 ## What's inside
 
@@ -141,36 +144,23 @@ for (int step = 0; step < 100; step++) {
 
 ## Build & test
 
-This repo ships a Maven Wrapper, so you don't need Maven installed — just a JDK (17+).
+Ships a Maven Wrapper, so you only need a JDK (17+):
 
 ```bash
-./mvnw test          # Linux / macOS
-mvnw.cmd test        # Windows
+./mvnw test          # Linux / macOS  (mvnw.cmd on Windows)
+
+# Run the bundled demos:
+./mvnw -q exec:java -Dexec.mainClass=io.github.anandkrishanu.micrograd.examples.GradCheck   # PyTorch-verified gradients
+./mvnw -q exec:java -Dexec.mainClass=io.github.anandkrishanu.micrograd.examples.MoonsDemo   # two-moons, reaches 100% acc
 ```
 
-## Run the examples
+## Contributing
 
-```bash
-# Gradient check against PyTorch reference values
-./mvnw -q exec:java -Dexec.mainClass=io.github.anandkrishanu.micrograd.examples.GradCheck
-
-# Two-moons binary classification with a tanh MLP (reaches 100% accuracy)
-./mvnw -q exec:java -Dexec.mainClass=io.github.anandkrishanu.micrograd.examples.MoonsDemo
-```
-
-## Project layout
-
-```
-src/main/java/io/github/anandkrishanu/micrograd/   core: Value, Module, Neuron, Layer, MLP
-                                         .../examples/   runnable demos
-src/test/java/io/github/anandkrishanu/micrograd/   JUnit 5 tests
-examples/Quickstart.java                           JBang zero-install demo
-examples/Playground.java                           JBang interactive TUI playground
-                       .../playground/             playground modules (parser, charts, trainer, ...)
-```
+Contributions are welcome, and this is a friendly place for a first OSS PR — **adding a new op (e.g.
+`sigmoid`, `log`) is the ideal one.** See [CONTRIBUTING.md](CONTRIBUTING.md) for the 3-step recipe.
+By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Credits
 
-Port of [karpathy/micrograd](https://github.com/karpathy/micrograd). Licensed under the [MIT License](LICENSE).
-
-Thanks :>
+A Java port of [karpathy/micrograd](https://github.com/karpathy/micrograd) by Andrej Karpathy.
+Licensed under the [MIT License](LICENSE).
